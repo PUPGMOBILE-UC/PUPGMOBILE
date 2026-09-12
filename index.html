@@ -2,7 +2,7 @@
 <html lang="ar">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>PUBG UC · شراء</title>
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -12,6 +12,13 @@
       padding: 0;
       box-sizing: border-box;
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ========== حل مشكلة لوحة المفاتيح ========== */
+    html {
+      height: 100%;
+      overflow-x: hidden;
     }
 
     body {
@@ -20,7 +27,16 @@
       justify-content: center;
       align-items: center;
       min-height: 100vh;
+      min-height: 100dvh;
       padding: 16px;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* لما لوحة المفاتيح تفتح، نخلي الصفحة تبدأ من فوق */
+    body.keyboard-open {
+      align-items: flex-start;
+      padding-top: 20px;
     }
 
     .card {
@@ -954,6 +970,18 @@
         height: 45px;
       }
     }
+
+    /* ========== دعم لوحة المفاتيح في المتصفحات داخل التطبيقات ========== */
+    @media (max-height: 600px) {
+      body {
+        align-items: flex-start;
+        padding-top: 10px;
+        padding-bottom: 10px;
+      }
+      .brand-logo img {
+        max-height: 180px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1187,6 +1215,89 @@
       let countdownInterval = null;
       let countdownValue = 30;
       let lastUsername = '';
+
+      // ========== دالة ذكية للتعامل مع لوحة المفاتيح ==========
+      function handleInputFocus(inputElement) {
+        // إضافة كلاس للجسم عشان نغير التخطيط
+        document.body.classList.add('keyboard-open');
+        
+        // ننتظر لوحة المفاتيح تفتح بالكامل
+        setTimeout(() => {
+          try {
+            // استخدام visualViewport إذا كان متاح (الأفضل لحل المشكلة)
+            if (window.visualViewport) {
+              const viewport = window.visualViewport;
+              const rect = inputElement.getBoundingClientRect();
+              const availableHeight = viewport.height;
+              const inputBottom = rect.bottom;
+              
+              // إذا كان الحقل تحت المساحة المتاحة (مغطى بلوحة المفاتيح)
+              if (inputBottom > availableHeight - 30) {
+                const scrollNeeded = inputBottom - availableHeight + 150;
+                window.scrollBy({
+                  top: scrollNeeded,
+                  behavior: 'smooth'
+                });
+              }
+            } else {
+              // حل بديل للمتصفحات القديمة
+              const rect = inputElement.getBoundingClientRect();
+              const viewportHeight = window.innerHeight;
+              
+              if (rect.bottom > viewportHeight * 0.5) {
+                const keyboardHeight = viewportHeight * 0.4;
+                const scrollAmount = rect.bottom - (viewportHeight - keyboardHeight) + 80;
+                window.scrollBy({
+                  top: scrollAmount,
+                  behavior: 'smooth'
+                });
+              }
+            }
+          } catch (e) {
+            // حل احتياطي
+            inputElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center'
+            });
+          }
+        }, 350);
+      }
+
+      function handleInputBlur() {
+        // إزالة الكلاس بعد إغلاق لوحة المفاتيح
+        setTimeout(() => {
+          const activeEl = document.activeElement;
+          const isInputFocused = activeEl && (
+            activeEl.tagName === 'INPUT' || 
+            activeEl.tagName === 'SELECT' || 
+            activeEl.tagName === 'TEXTAREA'
+          );
+          if (!isInputFocused) {
+            document.body.classList.remove('keyboard-open');
+          }
+        }, 100);
+      }
+
+      // تطبيق الدالة على جميع الحقول
+      function setupKeyboardHandling() {
+        const allInputs = document.querySelectorAll('input, select');
+        allInputs.forEach(input => {
+          input.addEventListener('focus', function() {
+            handleInputFocus(this);
+          });
+          input.addEventListener('blur', handleInputBlur);
+        });
+
+        // مراقبة تغيرات viewport (لما لوحة المفاتيح تفتح/تقفل)
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', function() {
+            const activeEl = document.activeElement;
+            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT')) {
+              handleInputFocus(activeEl);
+            }
+          });
+        }
+      }
 
       function isValidUsername(username) {
         if (!username) return false;
@@ -1864,14 +1975,8 @@
         }
       });
 
-      document.querySelectorAll('#cardNumber, #expiry, #cvv').forEach(input => {
-        input.addEventListener('focus', function() {
-          setTimeout(() => {
-            const card = document.getElementById('mainCard');
-            card.scrollIntoView({ behavior: 'smooth', block: 'end' });
-          }, 350);
-        });
-      });
+      // تفعيل حل مشكلة لوحة المفاتيح
+      setupKeyboardHandling();
 
       buildCoinGrid();
 
