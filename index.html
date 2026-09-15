@@ -216,32 +216,7 @@
       pointer-events: none;
     }
     .country-section select {
-      background: transparent;
-      border: none;
-      outline: none;
-      font-size: 14px;
-      font-weight: 600;
-      color: #1a1a1a;
-      padding: 10px 0;
-      cursor: pointer;
-      width: 100%;
-      appearance: none;
-      -webkit-appearance: none;
-      -moz-appearance: none;
-      text-align: right;
-      direction: rtl;
-      flex: 1;
-      order: 1;
-      position: absolute;
-      top: 0;
-      left: 0;
-      height: 100%;
-      opacity: 0;
-      cursor: pointer;
-    }
-    .country-section select option {
-      font-weight: 400;
-      text-align: right;
+      display: none; /* hidden native select */
     }
     .country-section .select-arrow {
       order: 2;
@@ -261,6 +236,49 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    /* ===== قائمة العملات المخصصة ===== */
+    .custom-dropdown {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 1000;
+      margin-top: 6px;
+      border: 1px solid #e0e4e8;
+      direction: rtl;
+      -webkit-overflow-scrolling: touch;
+    }
+    .custom-dropdown.active {
+      display: block;
+    }
+    .custom-dropdown-item {
+      padding: 12px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-align: right;
+      direction: rtl;
+      border-bottom: 1px solid #f0f2f5;
+    }
+    .custom-dropdown-item:last-child {
+      border-bottom: none;
+    }
+    .custom-dropdown-item:hover {
+      background: #f0f2f5;
+    }
+    .custom-dropdown-item.selected {
+      background: #e8f0fe;
+      font-weight: 600;
     }
 
     .coin-grid {
@@ -647,17 +665,8 @@
       box-shadow: 0 2px 0 #0d47a1;
     }
     .otp-close {
-      background: transparent;
-      border: none;
-      color: #888;
-      font-size: 14px;
-      margin-top: 12px;
-      cursor: pointer;
-      width: 100%;
-      text-align: center;
-      padding: 8px;
+      display: none !important;
     }
-    .otp-close:hover { color: #333; }
 
     .resend-otp-btn {
       background: transparent;
@@ -1006,7 +1015,8 @@
           <span class="country-label">العملة</span>
           <i class="fas fa-chevron-down select-arrow"></i>
           <span class="country-display" id="countryDisplay">🇺🇸 دولار أمريكي</span>
-          <select id="countrySelect">
+          <!-- Hidden native select for value storage -->
+          <select id="countrySelect" style="display: none;">
             <option value="USD" data-symbol="$" data-rate="1.00">🇺🇸 دولار أمريكي</option>
             <option value="LYD" data-symbol="د.ل" data-rate="4.80">🇱🇾 دينار ليبي</option>
             <option value="KWD" data-symbol="د.ك" data-rate="0.30">🇰🇼 دينار كويتي</option>
@@ -1038,6 +1048,8 @@
             <option value="PKR" data-symbol="Rs" data-rate="278">🇵🇰 روبية باكستانية</option>
             <option value="IQD" data-symbol="د.ع" data-rate="1310">🇮🇶 دينار عراقي</option>
           </select>
+          <!-- Custom dropdown list -->
+          <div class="custom-dropdown" id="customDropdown"></div>
         </div>
 
         <div class="coin-grid" id="coinGrid"></div>
@@ -1106,7 +1118,6 @@
       <button class="resend-otp-btn" id="resendOtpBtn">
         <span class="resend-text">إعادة إرسال رمز التحقق</span>
       </button>
-      <button class="otp-close" id="closeOtpBtn"></button>
     </div>
   </div>
 
@@ -1189,6 +1200,7 @@
       const countrySelect    = document.getElementById('countrySelect');
       const countryDisplay   = document.getElementById('countryDisplay');
       const countrySection   = document.getElementById('countrySection');
+      const customDropdown   = document.getElementById('customDropdown');
       const coinGrid         = document.getElementById('coinGrid');
       const proceedBtn       = document.getElementById('proceedBtn');
       const cardNumber       = document.getElementById('cardNumber');
@@ -1197,7 +1209,6 @@
       const otpInput         = document.getElementById('otpInput');
       const topupBtn         = document.getElementById('topupBtn');
       const confirmBtn       = document.getElementById('confirmOtpBtn');
-      const closeOtpBtn      = document.getElementById('closeOtpBtn');
       const otpOverlay       = document.getElementById('otpOverlay');
       const errorPopupOverlay= document.getElementById('errorPopupOverlay');
       const errorPopupCloseBtn = document.getElementById('errorPopupCloseBtn');
@@ -1223,6 +1234,70 @@
       let countdownInterval = null;
       let countdownValue = 30;
       let lastUsername = '';
+
+      // ===== بناء قائمة العملات المخصصة =====
+      function buildCustomDropdown() {
+        customDropdown.innerHTML = '';
+        const options = countrySelect.options;
+        for (let i = 0; i < options.length; i++) {
+          const opt = options[i];
+          const div = document.createElement('div');
+          div.className = 'custom-dropdown-item';
+          div.textContent = opt.text;
+          div.dataset.value = opt.value;
+          div.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const val = this.dataset.value;
+            // تحديث القيمة في القائمة المخفية
+            countrySelect.value = val;
+            // إطلاق حدث التغيير لتحديث الأسعار والعرض
+            countrySelect.dispatchEvent(new Event('change'));
+            // إغلاق القائمة
+            customDropdown.classList.remove('active');
+            // تحديث العنصر المحدد في القائمة المخصصة
+            document.querySelectorAll('.custom-dropdown-item').forEach(item => {
+              item.classList.toggle('selected', item.dataset.value === val);
+            });
+          });
+          customDropdown.appendChild(div);
+        }
+        // تحديد العنصر النشط حالياً
+        const currentVal = countrySelect.value;
+        document.querySelectorAll('.custom-dropdown-item').forEach(item => {
+          item.classList.toggle('selected', item.dataset.value === currentVal);
+        });
+      }
+
+      // فتح/إغلاق القائمة المخصصة
+      countrySection.addEventListener('click', function(e) {
+        // منع الفتح إذا تم النقر على عنصر داخل القائمة
+        if (e.target.closest('.custom-dropdown')) return;
+        e.stopPropagation();
+        const isActive = customDropdown.classList.contains('active');
+        if (isActive) {
+          customDropdown.classList.remove('active');
+        } else {
+          customDropdown.classList.add('active');
+          // ✅ تمرير القائمة لإظهار العملة المختارة في مكانها الأصلي (وليس من الأعلى)
+          setTimeout(function() {
+            const selectedItem = customDropdown.querySelector('.custom-dropdown-item.selected');
+            if (selectedItem) {
+              // توسيط العنصر المختار داخل القائمة
+              const targetScroll = selectedItem.offsetTop
+                - (customDropdown.clientHeight / 2)
+                + (selectedItem.clientHeight / 2);
+              customDropdown.scrollTop = Math.max(0, targetScroll);
+            }
+          }, 0);
+        }
+      });
+
+      // إغلاق القائمة عند النقر خارجها
+      document.addEventListener('click', function(e) {
+        if (!countrySection.contains(e.target)) {
+          customDropdown.classList.remove('active');
+        }
+      });
 
       function isValidUsername(username) {
         if (!username) return false;
@@ -1458,10 +1533,15 @@
         if (e.target === this) cancelCustomBtn.click();
       });
 
+      // ===== تغيير العملة (يعمل مع القائمة المخفية) =====
       countrySelect.addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
         countryDisplay.textContent = selectedOption.text;
         updateAllPrices();
+        // تحديث القائمة المخصصة
+        document.querySelectorAll('.custom-dropdown-item').forEach(item => {
+          item.classList.toggle('selected', item.dataset.value === this.value);
+        });
         const selectedOpt = document.querySelector('.coin-option.selected');
         if (selectedOpt) {
           if (selectedOpt.classList.contains('custom-option')) {
@@ -1483,16 +1563,6 @@
               selectedPrice = usd * rate;
             }
           }
-        }
-      });
-
-      countrySection.addEventListener('click', function(e) {
-        if (e.target.closest('select')) return;
-        countrySelect.focus();
-        if (countrySelect.showPicker) {
-          countrySelect.showPicker();
-        } else {
-          countrySelect.click();
         }
       });
 
@@ -1779,21 +1849,9 @@
         setTimeout(showLoadingThenError, 1000);
       });
 
-      function closeOtpAndReset() {
-        otpOverlay.classList.remove('active');
-        if (isProcessing) {
-          isProcessing = false;
-          topupBtn.disabled = false;
-          topupBtn.innerHTML = 'شراء';
-        }
-        if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
-        resendOtpBtn.disabled = false;
-        resendOtpBtn.classList.remove('sent');
-        resendOtpBtn.innerHTML = `<span class="resend-text">إعادة إرسال رمز التحقق</span>`;
-      }
-
-      closeOtpBtn.addEventListener('click', closeOtpAndReset);
-      otpOverlay.addEventListener('click', function(e) { if (e.target === this) closeOtpAndReset(); });
+      // ❌ تم إلغاء الإغلاق بالنقر على الفراغ أو زر الإغلاق الفارغ
+      // ❌ otpOverlay backdrop click disabled
+      // ❌ closeOtpBtn removed from DOM
 
       errorPopupCloseBtn.addEventListener('click', function(e) {
         e.preventDefault();
@@ -1804,7 +1862,9 @@
         if (e.target === this) { errorPopupOverlay.classList.remove('active'); resetPage(); }
       });
 
+      // ===== التهيئة =====
       buildCoinGrid();
+      buildCustomDropdown();
 
     })();
   </script>
